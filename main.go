@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"luci-app-echarging-go/api" // 这里的路径取决于你 go mod init 的名字
+	"luci-app-echarging-go/api"
 )
 
 func main() {
