@@ -27,11 +27,6 @@
 - 邮件:使用标准库net/smtp,或者更友好的第三方包github.com/jordan-wright/email
 - 微信:接入WxPusher(具体实现见文档https://wxpusher.zjiecode.com/docs/#/)
 
-## 关于
-api和使用方法可以参考工作区内的charge_checker.py中的相关代码  
-./api/client.go和./main.go中已写有部分代码(未完成),如果审阅后认为没问题可以续写,也可以优化/推倒重写  
-项目结构也是,认为不合理可以推倒重来
-
 ## 当前项目结构：                                                             
 工作区/                                                                   
 ├── main.go             # 程序入口,初始化并启动服务                       
