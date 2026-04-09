@@ -12,9 +12,9 @@ import (
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type ElectricityResponse struct {
-	Success bool   `json:"success"`
-	Data    string `json:"data"`
-	Message string `json:"message"`
+	Success bool        `json:"success"`
+	Data    json.Number `json:"data"`
+	Message string      `json:"message"`
 }
 
 func GetBalance(building, room string) (string, error) {
@@ -46,5 +46,5 @@ func GetBalance(building, room string) (string, error) {
 		return "", fmt.Errorf("API 报错: %s", result.Message)
 	}
 
-	return result.Data, nil
+	return result.Data.String(), nil
 }

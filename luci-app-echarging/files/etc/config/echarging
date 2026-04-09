@@ -1,0 +1,35 @@
+config echarging 'global'
+	option enabled '1'
+	option threshold '15'
+	option db_path '/var/lib/echarging/echarging.db'
+
+config schedule 'schedule'
+	option interval_minutes '60'
+	list check_hours '8'
+	list check_hours '12'
+	list check_hours '18'
+	list check_hours '22'
+
+config room
+	option building '44'
+	option room '1207'
+	option label '44栋1207'
+
+config prediction 'prediction'
+	option sample_count '10'
+	option custom_daily_rate '0'
+
+config email 'email'
+	option enabled '0'
+	option smtp_host ''
+	option smtp_port '587'
+	option username ''
+	option password ''
+	option from_addr ''
+	list to ''
+
+config wxpusher 'wxpusher'
+	option enabled '0'
+	option app_token ''
+	list uids ''
+	list topic_ids ''

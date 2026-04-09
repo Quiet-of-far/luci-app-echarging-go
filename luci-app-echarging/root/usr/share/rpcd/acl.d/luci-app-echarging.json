@@ -1,0 +1,15 @@
+{
+	"luci-app-echarging": {
+		"description": "Grant access to echarging configuration",
+		"read": {
+			"uci": ["echarging"],
+			"file": {
+				"/usr/bin/echarging": ["exec"],
+				"/etc/init.d/echarging": ["exec"]
+			}
+		},
+		"write": {
+			"uci": ["echarging"]
+		}
+	}
+}

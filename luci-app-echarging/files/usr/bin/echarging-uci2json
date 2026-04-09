@@ -1,0 +1,139 @@
+#!/bin/sh
+
+# UCI -> JSON converter for echarging
+# Reads /etc/config/echarging and writes /var/etc/echarging.json
+
+. /lib/functions.sh
+
+CONFIG_FILE="/var/etc/echarging.json"
+mkdir -p /var/etc
+mkdir -p /var/lib/echarging
+
+config_load echarging
+
+# --- Read global ---
+config_get THRESHOLD global threshold 15
+config_get DB_PATH global db_path /var/lib/echarging/echarging.db
+
+# --- Read schedule ---
+config_get INTERVAL schedule interval_minutes 60
+
+CHECK_HOURS=""
+append_check_hour() {
+	if [ -z "$CHECK_HOURS" ]; then
+		CHECK_HOURS="$1"
+	else
+		CHECK_HOURS="$CHECK_HOURS,$1"
+	fi
+}
+config_list_foreach schedule check_hours append_check_hour
+
+# --- Read prediction ---
+config_get SAMPLE_COUNT prediction sample_count 10
+config_get CUSTOM_RATE prediction custom_daily_rate 0
+
+# --- Read email ---
+config_get EMAIL_ENABLED email enabled 0
+config_get SMTP_HOST email smtp_host ""
+config_get SMTP_PORT email smtp_port 587
+config_get EMAIL_USER email username ""
+config_get EMAIL_PASS email password ""
+config_get EMAIL_FROM email from_addr ""
+
+EMAIL_TO=""
+append_email_to() {
+	[ -z "$1" ] && return
+	if [ -z "$EMAIL_TO" ]; then
+		EMAIL_TO="\"$1\""
+	else
+		EMAIL_TO="$EMAIL_TO,\"$1\""
+	fi
+}
+config_list_foreach email to append_email_to
+
+# --- Read wxpusher ---
+config_get WX_ENABLED wxpusher enabled 0
+config_get WX_TOKEN wxpusher app_token ""
+
+WX_UIDS=""
+append_wx_uid() {
+	[ -z "$1" ] && return
+	if [ -z "$WX_UIDS" ]; then
+		WX_UIDS="\"$1\""
+	else
+		WX_UIDS="$WX_UIDS,\"$1\""
+	fi
+}
+config_list_foreach wxpusher uids append_wx_uid
+
+WX_TOPICS=""
+append_wx_topic() {
+	[ -z "$1" ] && return
+	if [ -z "$WX_TOPICS" ]; then
+		WX_TOPICS="$1"
+	else
+		WX_TOPICS="$WX_TOPICS,$1"
+	fi
+}
+config_list_foreach wxpusher topic_ids append_wx_topic
+
+# --- Read rooms ---
+ROOMS=""
+add_room() {
+	local section="$1"
+	local building room label
+	config_get building "$section" building ""
+	config_get room "$section" room ""
+	config_get label "$section" label ""
+	[ -z "$building" ] || [ -z "$room" ] && return
+
+	local entry="{\"building\":\"$building\",\"room\":\"$room\",\"label\":\"$label\"}"
+	if [ -z "$ROOMS" ]; then
+		ROOMS="$entry"
+	else
+		ROOMS="$ROOMS,$entry"
+	fi
+}
+config_foreach add_room room
+
+# --- Build check_hours array ---
+CH_ARRAY=""
+if [ -n "$CHECK_HOURS" ]; then
+	CH_ARRAY="$CHECK_HOURS"
+fi
+
+# --- Convert booleans ---
+[ "$EMAIL_ENABLED" = "1" ] && EMAIL_ENABLED_JSON="true" || EMAIL_ENABLED_JSON="false"
+[ "$WX_ENABLED" = "1" ] && WX_ENABLED_JSON="true" || WX_ENABLED_JSON="false"
+
+# --- Write JSON ---
+cat > "$CONFIG_FILE" <<EOF
+{
+  "rooms": [${ROOMS}],
+  "schedule": {
+    "interval_minutes": ${INTERVAL},
+    "check_hours": [${CH_ARRAY}]
+  },
+  "threshold": ${THRESHOLD},
+  "prediction": {
+    "sample_count": ${SAMPLE_COUNT},
+    "custom_daily_rate": ${CUSTOM_RATE}
+  },
+  "email": {
+    "enabled": ${EMAIL_ENABLED_JSON},
+    "smtp_host": "${SMTP_HOST}",
+    "smtp_port": ${SMTP_PORT},
+    "username": "${EMAIL_USER}",
+    "password": "${EMAIL_PASS}",
+    "from": "${EMAIL_FROM}",
+    "to": [${EMAIL_TO}]
+  },
+  "wxpusher": {
+    "enabled": ${WX_ENABLED_JSON},
+    "app_token": "${WX_TOKEN}",
+    "uids": [${WX_UIDS}],
+    "topic_ids": [${WX_TOPICS}]
+  },
+  "db_path": "${DB_PATH}"
+}
+EOF

@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "config.json", "配置文件路径")
+	configPath := flag.String("config", "/var/etc/echarging.json", "配置文件路径")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)

@@ -1,0 +1,14 @@
+{
+	"admin/services/echarging": {
+		"title": "电费监控",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "cbi/echarging"
+		},
+		"depends": {
+			"acl": ["luci-app-echarging"],
+			"uci": {"echarging": true}
+		}
+	}
+}
