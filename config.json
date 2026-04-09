@@ -1,0 +1,30 @@
+{
+  "rooms": [
+    {"building": "44", "room": "1207", "label": "44栋1207"}
+  ],
+  "schedule": {
+    "interval_minutes": 60,
+    "check_hours": [8, 12, 18, 22]
+  },
+  "threshold": 15.0,
+  "prediction": {
+    "sample_count": 10,
+    "custom_daily_rate": 0
+  },
+  "email": {
+    "enabled": false,
+    "smtp_host": "smtp.example.com",
+    "smtp_port": 587,
+    "username": "user@example.com",
+    "password": "",
+    "from": "user@example.com",
+    "to": ["admin@example.com"]
+  },
+  "wxpusher": {
+    "enabled": false,
+    "app_token": "",
+    "uids": [],
+    "topic_ids": []
+  },
+  "db_path": "echarging.db"
+}
