@@ -12,8 +12,12 @@ mkdir -p /var/lib/echarging
 config_load echarging
 
 # --- Read global ---
-config_get THRESHOLD global threshold 15
+config_get LOW_ENERGY_THRESHOLD global low_energy_threshold ""
+config_get THRESHOLD_LEGACY global threshold 15
 config_get DB_PATH global db_path /var/lib/echarging/echarging.db
+config_get DEPLETION_ALERT_DAYS global depletion_alert_days 0
+
+[ -n "$LOW_ENERGY_THRESHOLD" ] || LOW_ENERGY_THRESHOLD="$THRESHOLD_LEGACY"
 
 # --- Read schedule ---
 config_get INTERVAL schedule interval_minutes 60
@@ -30,7 +34,10 @@ config_list_foreach schedule check_hours append_check_hour
 
 # --- Read prediction ---
 config_get SAMPLE_COUNT prediction sample_count 10
-config_get CUSTOM_RATE prediction custom_daily_rate 0
+config_get CUSTOM_DAILY_CONSUMPTION prediction custom_daily_consumption ""
+config_get CUSTOM_RATE_LEGACY prediction custom_daily_rate 0
+
+[ -n "$CUSTOM_DAILY_CONSUMPTION" ] || CUSTOM_DAILY_CONSUMPTION="$CUSTOM_RATE_LEGACY"
 
 # --- Read email ---
 config_get EMAIL_ENABLED email enabled 0
@@ -114,10 +121,11 @@ cat > "$CONFIG_FILE" <<EOF
     "interval_minutes": ${INTERVAL},
     "check_hours": [${CH_ARRAY}]
   },
-  "threshold": ${THRESHOLD},
+  "low_energy_threshold": ${LOW_ENERGY_THRESHOLD},
+  "depletion_alert_days": ${DEPLETION_ALERT_DAYS},
   "prediction": {
     "sample_count": ${SAMPLE_COUNT},
-    "custom_daily_rate": ${CUSTOM_RATE}
+    "custom_daily_consumption": ${CUSTOM_DAILY_CONSUMPTION}
   },
   "email": {
     "enabled": ${EMAIL_ENABLED_JSON},

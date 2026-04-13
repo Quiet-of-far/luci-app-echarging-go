@@ -34,18 +34,21 @@ type WxPusherConfig struct {
 }
 
 type PredictionConfig struct {
-	SampleCount     int     `json:"sample_count"`
-	CustomDailyRate float64 `json:"custom_daily_rate"`
+	SampleCount            int     `json:"sample_count"`
+	CustomDailyConsumption float64 `json:"custom_daily_consumption"`
+	CustomDailyRateLegacy  float64 `json:"custom_daily_rate"`
 }
 
 type Config struct {
-	Rooms      []Room           `json:"rooms"`
-	Schedule   ScheduleConfig   `json:"schedule"`
-	Threshold  float64          `json:"threshold"`
-	Email      EmailConfig      `json:"email"`
-	WxPusher   WxPusherConfig   `json:"wxpusher"`
-	Prediction PredictionConfig `json:"prediction"`
-	DBPath     string           `json:"db_path"`
+	Rooms              []Room           `json:"rooms"`
+	Schedule           ScheduleConfig   `json:"schedule"`
+	LowEnergyThreshold float64          `json:"low_energy_threshold"`
+	ThresholdLegacy    float64          `json:"threshold"`
+	DepletionAlertDays int              `json:"depletion_alert_days"`
+	Email              EmailConfig      `json:"email"`
+	WxPusher           WxPusherConfig   `json:"wxpusher"`
+	Prediction         PredictionConfig `json:"prediction"`
+	DBPath             string           `json:"db_path"`
 }
 
 func Load(path string) (*Config, error) {
@@ -64,14 +67,21 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) applyDefaults() {
-	if c.Threshold == 0 {
-		c.Threshold = 15.0
+	if c.LowEnergyThreshold == 0 {
+		if c.ThresholdLegacy > 0 {
+			c.LowEnergyThreshold = c.ThresholdLegacy
+		} else {
+			c.LowEnergyThreshold = 15.0
+		}
 	}
 	if c.DBPath == "" {
 		c.DBPath = "echarging.db"
 	}
 	if c.Prediction.SampleCount == 0 {
 		c.Prediction.SampleCount = 10
+	}
+	if c.Prediction.CustomDailyConsumption == 0 && c.Prediction.CustomDailyRateLegacy > 0 {
+		c.Prediction.CustomDailyConsumption = c.Prediction.CustomDailyRateLegacy
 	}
 	if c.Schedule.IntervalMinutes == 0 && len(c.Schedule.CheckHours) == 0 {
 		c.Schedule.IntervalMinutes = 60

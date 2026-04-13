@@ -1,6 +1,6 @@
 {
 	"admin/services/echarging": {
-		"title": "电费监控",
+		"title": "电量监控",
 		"order": 90,
 		"action": {
 			"type": "view",

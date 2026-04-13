@@ -3,6 +3,7 @@ package notifier
 import (
 	"fmt"
 	"net/smtp"
+	"strings"
 
 	"github.com/jordan-wright/email"
 	"luci-app-echarging-go/config"
@@ -19,6 +20,21 @@ func NewEmailNotifier(cfg config.EmailConfig) *EmailNotifier {
 func (n *EmailNotifier) Send(summary, body string) error {
 	if !n.cfg.Enabled {
 		return nil
+	}
+	if strings.TrimSpace(n.cfg.SMTPHost) == "" {
+		return fmt.Errorf("missing smtp_host")
+	}
+	if strings.TrimSpace(n.cfg.Username) == "" {
+		return fmt.Errorf("missing username")
+	}
+	if strings.TrimSpace(n.cfg.Password) == "" {
+		return fmt.Errorf("missing password")
+	}
+	if strings.TrimSpace(n.cfg.From) == "" {
+		return fmt.Errorf("missing from address")
+	}
+	if len(n.cfg.To) == 0 {
+		return fmt.Errorf("missing recipient list")
 	}
 
 	e := email.NewEmail()

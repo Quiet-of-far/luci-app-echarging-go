@@ -5,6 +5,7 @@
 			"uci": ["echarging"],
 			"file": {
 				"/usr/bin/echarging": ["exec"],
+				"/usr/bin/echarging-uci2json": ["exec"],
 				"/etc/init.d/echarging": ["exec"]
 			}
 		},

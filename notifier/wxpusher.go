@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"luci-app-echarging-go/config"
 )
@@ -37,6 +38,12 @@ func NewWxPusherNotifier(cfg config.WxPusherConfig) *WxPusherNotifier {
 func (n *WxPusherNotifier) Send(summary, body string) error {
 	if !n.cfg.Enabled {
 		return nil
+	}
+	if strings.TrimSpace(n.cfg.AppToken) == "" {
+		return fmt.Errorf("missing app_token")
+	}
+	if len(n.cfg.UIDs) == 0 && len(n.cfg.TopicIDs) == 0 {
+		return fmt.Errorf("missing uid or topic target")
 	}
 
 	reqBody := wxPusherRequest{

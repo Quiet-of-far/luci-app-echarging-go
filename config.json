@@ -6,10 +6,11 @@
     "interval_minutes": 60,
     "check_hours": [8, 12, 18, 22]
   },
-  "threshold": 15.0,
+  "low_energy_threshold": 15.0,
+  "depletion_alert_days": 0,
   "prediction": {
     "sample_count": 10,
-    "custom_daily_rate": 0
+    "custom_daily_consumption": 0
   },
   "email": {
     "enabled": false,

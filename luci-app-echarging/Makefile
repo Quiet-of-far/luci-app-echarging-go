@@ -44,6 +44,9 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi
 	$(INSTALL_DATA) ./luasrc/model/cbi/echarging.lua $(1)/usr/lib/lua/luci/model/cbi/echarging.lua
 
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/echarging
+	$(INSTALL_DATA) ./luasrc/view/echarging/status.htm $(1)/usr/lib/lua/luci/view/echarging/status.htm
+
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-echarging.json $(1)/usr/share/luci/menu.d/luci-app-echarging.json
 

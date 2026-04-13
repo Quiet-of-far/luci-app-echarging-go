@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -28,6 +30,53 @@ func main() {
 	}
 	defer store.Close()
 
+	c := checker.New(cfg, store, buildNotifiers(cfg))
+	command := "run"
+	var args []string
+	if flag.NArg() > 0 {
+		command = flag.Arg(0)
+		args = flag.Args()[1:]
+	}
+
+	switch command {
+	case "run":
+		runDaemon(c)
+	case "query-now":
+		writeJSON(c.QueryAll())
+	case "status":
+		writeJSON(c.GetStatuses())
+	case "test-notify":
+		channel, err := parseNotifyChannel(args)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := c.TestNotifier(channel); err != nil {
+			log.Fatalf("测试通知失败: %v", err)
+		}
+		writeJSON(map[string]string{
+			"status":  "ok",
+			"channel": channel,
+			"message": "测试通知已发送",
+		})
+	default:
+		log.Fatalf("未知命令: %s", command)
+	}
+}
+
+func parseNotifyChannel(args []string) (string, error) {
+	fs := flag.NewFlagSet("test-notify", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	channel := fs.String("channel", "", "通知渠道: email|wxpusher")
+	if err := fs.Parse(args); err != nil {
+		return "", err
+	}
+	if *channel == "" {
+		return "", fmt.Errorf("缺少 --channel 参数")
+	}
+	return *channel, nil
+}
+
+func buildNotifiers(cfg *config.Config) []notifier.Notifier {
 	var notifiers []notifier.Notifier
 	if cfg.Email.Enabled {
 		notifiers = append(notifiers, notifier.NewEmailNotifier(cfg.Email))
@@ -35,9 +84,10 @@ func main() {
 	if cfg.WxPusher.Enabled {
 		notifiers = append(notifiers, notifier.NewWxPusherNotifier(cfg.WxPusher))
 	}
+	return notifiers
+}
 
-	c := checker.New(cfg, store, notifiers)
-
+func runDaemon(c *checker.Checker) {
 	stop := make(chan struct{})
 	go func() {
 		sig := make(chan os.Signal, 1)
@@ -47,7 +97,15 @@ func main() {
 		close(stop)
 	}()
 
-	log.Println("电费监控已启动")
+	log.Println("电量监控已启动")
 	c.Run(stop)
 	log.Println("已退出")
+}
+
+func writeJSON(v any) {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(v); err != nil {
+		log.Fatal(fmt.Errorf("写出 JSON 失败: %w", err))
+	}
 }

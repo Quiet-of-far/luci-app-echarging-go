@@ -1,6 +1,7 @@
 config echarging 'global'
 	option enabled '1'
-	option threshold '15'
+	option low_energy_threshold '15'
+	option depletion_alert_days '0'
 	option db_path '/var/lib/echarging/echarging.db'
 
 config schedule 'schedule'
@@ -17,7 +18,7 @@ config room
 
 config prediction 'prediction'
 	option sample_count '10'
-	option custom_daily_rate '0'
+	option custom_daily_consumption '0'
 
 config email 'email'
 	option enabled '0'
