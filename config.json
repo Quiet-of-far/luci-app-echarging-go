@@ -1,6 +1,6 @@
 {
   "rooms": [
-    {"building": "44", "room": "1207", "label": "44栋1207"}
+    {"building": "44", "room": "1207", "label": "44栋1207", "recipients": ["admin@example.com"]}
   ],
   "schedule": {
     "interval_minutes": 60,
@@ -18,14 +18,7 @@
     "smtp_port": 587,
     "username": "user@example.com",
     "password": "",
-    "from": "user@example.com",
-    "to": ["admin@example.com"]
-  },
-  "wxpusher": {
-    "enabled": false,
-    "app_token": "",
-    "uids": [],
-    "topic_ids": []
+    "from": "user@example.com"
   },
   "db_path": "echarging.db"
 }

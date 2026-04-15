@@ -1,5 +1,6 @@
 openwrt-sdk-24.10.5-x86-64_gcc-13.3.0_musl.Linux-x86_64
-luci-app-echarging_1.0.0-r1_all.ipk
+luci-app-echarging_1.0.0-r1_x86_64.ipk
+luci-app-echarging_1.0.0-r2_all.ipk
 .gocache
 echarging
 echarging.db

@@ -11,7 +11,6 @@ import (
 
 	"luci-app-echarging-go/checker"
 	"luci-app-echarging-go/config"
-	"luci-app-echarging-go/notifier"
 	"luci-app-echarging-go/storage"
 )
 
@@ -30,7 +29,7 @@ func main() {
 	}
 	defer store.Close()
 
-	c := checker.New(cfg, store, buildNotifiers(cfg))
+	c := checker.New(cfg, store)
 	command := "run"
 	var args []string
 	if flag.NArg() > 0 {
@@ -46,45 +45,22 @@ func main() {
 	case "status":
 		writeJSON(c.GetStatuses())
 	case "test-notify":
-		channel, err := parseNotifyChannel(args)
-		if err != nil {
-			log.Fatal(err)
+		if len(args) > 0 {
+			writeJSONError(fmt.Sprintf("不再支持通知渠道参数: %v", args))
+			os.Exit(1)
 		}
-		if err := c.TestNotifier(channel); err != nil {
-			log.Fatalf("测试通知失败: %v", err)
+		if err := c.TestEmail(); err != nil {
+			writeJSONError(err.Error())
+			os.Exit(1)
 		}
 		writeJSON(map[string]string{
 			"status":  "ok",
-			"channel": channel,
-			"message": "测试通知已发送",
+			"message": "测试邮件已发送",
 		})
 	default:
-		log.Fatalf("未知命令: %s", command)
+		writeJSONError(fmt.Sprintf("未知命令: %s", command))
+		os.Exit(1)
 	}
-}
-
-func parseNotifyChannel(args []string) (string, error) {
-	fs := flag.NewFlagSet("test-notify", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	channel := fs.String("channel", "", "通知渠道: email|wxpusher")
-	if err := fs.Parse(args); err != nil {
-		return "", err
-	}
-	if *channel == "" {
-		return "", fmt.Errorf("缺少 --channel 参数")
-	}
-	return *channel, nil
-}
-
-func buildNotifiers(cfg *config.Config) []notifier.Notifier {
-	var notifiers []notifier.Notifier
-	if cfg.Email.Enabled {
-		notifiers = append(notifiers, notifier.NewEmailNotifier(cfg.Email))
-	}
-	if cfg.WxPusher.Enabled {
-		notifiers = append(notifiers, notifier.NewWxPusherNotifier(cfg.WxPusher))
-	}
-	return notifiers
 }
 
 func runDaemon(c *checker.Checker) {
@@ -108,4 +84,11 @@ func writeJSON(v any) {
 	if err := encoder.Encode(v); err != nil {
 		log.Fatal(fmt.Errorf("写出 JSON 失败: %w", err))
 	}
+}
+
+func writeJSONError(message string) {
+	writeJSON(map[string]string{
+		"status":  "error",
+		"message": message,
+	})
 }

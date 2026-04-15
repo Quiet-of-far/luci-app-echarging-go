@@ -3,12 +3,14 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 )
 
 type Room struct {
-	Building string `json:"building"`
-	Room     string `json:"room"`
-	Label    string `json:"label"`
+	Building   string   `json:"building"`
+	Room       string   `json:"room"`
+	Label      string   `json:"label"`
+	Recipients []string `json:"recipients"`
 }
 
 type ScheduleConfig struct {
@@ -26,13 +28,6 @@ type EmailConfig struct {
 	To       []string `json:"to"`
 }
 
-type WxPusherConfig struct {
-	Enabled  bool     `json:"enabled"`
-	AppToken string   `json:"app_token"`
-	UIDs     []string `json:"uids"`
-	TopicIDs []int    `json:"topic_ids,omitempty"`
-}
-
 type PredictionConfig struct {
 	SampleCount            int     `json:"sample_count"`
 	CustomDailyConsumption float64 `json:"custom_daily_consumption"`
@@ -46,7 +41,6 @@ type Config struct {
 	ThresholdLegacy    float64          `json:"threshold"`
 	DepletionAlertDays int              `json:"depletion_alert_days"`
 	Email              EmailConfig      `json:"email"`
-	WxPusher           WxPusherConfig   `json:"wxpusher"`
 	Prediction         PredictionConfig `json:"prediction"`
 	DBPath             string           `json:"db_path"`
 }
@@ -63,6 +57,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg.applyDefaults()
+	cfg.resolvePaths(path)
 	return &cfg, nil
 }
 
@@ -86,4 +81,16 @@ func (c *Config) applyDefaults() {
 	if c.Schedule.IntervalMinutes == 0 && len(c.Schedule.CheckHours) == 0 {
 		c.Schedule.IntervalMinutes = 60
 	}
+}
+
+func (c *Config) resolvePaths(configPath string) {
+	if filepath.IsAbs(c.DBPath) {
+		return
+	}
+
+	baseDir := filepath.Dir(configPath)
+	if baseDir == "" {
+		baseDir = "."
+	}
+	c.DBPath = filepath.Clean(filepath.Join(baseDir, c.DBPath))
 }

@@ -2,8 +2,11 @@ package checker
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,15 +26,13 @@ const (
 type Checker struct {
 	cfg       *config.Config
 	store     *storage.Store
-	notifiers []notifier.Notifier
 	lastAlert map[string]time.Time
 }
 
-func New(cfg *config.Config, store *storage.Store, notifiers []notifier.Notifier) *Checker {
+func New(cfg *config.Config, store *storage.Store) *Checker {
 	return &Checker{
 		cfg:       cfg,
 		store:     store,
-		notifiers: notifiers,
 		lastAlert: make(map[string]time.Time),
 	}
 }
@@ -74,9 +75,12 @@ func (c *Checker) CheckRoom(room config.Room) (*models.QueryResult, error) {
 	alerts := c.evaluateAlerts(result.Room)
 	if len(alerts) > 0 && c.shouldSendAlert(room, alerts, result.Room.QueryTime) {
 		summary, body := c.buildAlertMessage(result.Room, alerts)
-		notifier.SendAll(c.notifiers, summary, body)
-		c.markAlertsSent(room, alerts, result.Room.QueryTime)
-		log.Printf("[checker] 已发送告警: %s (%s)", room.Label, strings.Join(alerts, ","))
+		if err := c.sendRoomEmail(room, summary, body); err != nil {
+			log.Printf("[checker] 发送邮件失败 %s: %v", room.Label, err)
+		} else {
+			c.markAlertsSent(room, alerts, result.Room.QueryTime)
+			log.Printf("[checker] 已发送告警: %s (%s)", room.Label, strings.Join(alerts, ","))
+		}
 	}
 
 	result.Alerts = alerts
@@ -90,80 +94,82 @@ func (c *Checker) QueryAll() []models.QueryResult {
 		if err != nil {
 			results = append(results, models.QueryResult{
 				Room: models.RoomStatus{
-					Label:            room.Label,
-					Building:         room.Building,
-					Room:             room.Room,
-					PredictionStatus: "",
-					QueryStatus:      err.Error(),
+					Label:       room.Label,
+					Building:    room.Building,
+					Room:        room.Room,
+					QueryStatus: err.Error(),
 				},
 			})
 			continue
 		}
 		results = append(results, *result)
 	}
+	statuses := make([]models.RoomStatus, 0, len(results))
+	for _, result := range results {
+		statuses = append(statuses, result.Room)
+	}
+	c.saveStatusCache(statuses)
 	return results
 }
 
 func (c *Checker) GetStatuses() []models.RoomStatus {
+	if cached, err := c.loadStatusCache(); err == nil && len(cached) > 0 {
+		return cached
+	}
+
 	statuses := make([]models.RoomStatus, 0, len(c.cfg.Rooms))
 	for _, room := range c.cfg.Rooms {
 		status, err := c.buildStatus(room)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				statuses = append(statuses, models.RoomStatus{
-					Label:              room.Label,
-					Building:           room.Building,
-					Room:               room.Room,
-					QueryStatus:        "暂无查询记录",
-					QueryTime:          time.Time{},
-					MeterTime:          nil,
-					PredictedEmptyTime: nil,
+					Label:       room.Label,
+					Building:    room.Building,
+					Room:        room.Room,
+					QueryStatus: "暂无查询记录",
 				})
 				continue
 			}
 
 			statuses = append(statuses, models.RoomStatus{
-				Label:            room.Label,
-				Building:         room.Building,
-				Room:             room.Room,
-				QueryStatus:      err.Error(),
-				QueryTime:        time.Time{},
-				MeterTime:        nil,
-				PredictionStatus: "",
+				Label:       room.Label,
+				Building:    room.Building,
+				Room:        room.Room,
+				QueryStatus: err.Error(),
 			})
 			continue
 		}
 		statuses = append(statuses, *status)
 	}
+	c.saveStatusCache(statuses)
 	return statuses
 }
 
-func (c *Checker) TestNotifier(channel string) error {
-	summary := "[电量监控] 测试通知"
-	body := "这是一条测试通知，用于确认通知渠道配置已生效。"
-
-	switch channel {
-	case "email":
-		if !c.cfg.Email.Enabled {
-			return fmt.Errorf("邮件通知未启用")
-		}
-		n := notifier.NewEmailNotifier(c.cfg.Email)
-		if err := n.Send(summary, body); err != nil {
-			return err
-		}
-	case "wxpusher":
-		if !c.cfg.WxPusher.Enabled {
-			return fmt.Errorf("微信通知未启用")
-		}
-		n := notifier.NewWxPusherNotifier(c.cfg.WxPusher)
-		if err := n.Send(summary, body); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported channel: %s", channel)
+func (c *Checker) TestEmail() error {
+	if !c.cfg.Email.Enabled {
+		return fmt.Errorf("邮件通知未启用")
 	}
 
-	return nil
+	seen := make(map[string]bool)
+	recipients := make([]string, 0)
+	for _, room := range c.cfg.Rooms {
+		for _, recipient := range room.Recipients {
+			recipient = strings.TrimSpace(recipient)
+			if recipient == "" || seen[recipient] {
+				continue
+			}
+			seen[recipient] = true
+			recipients = append(recipients, recipient)
+		}
+	}
+
+	if len(recipients) == 0 {
+		return fmt.Errorf("未配置任何宿舍收件人地址")
+	}
+
+	emailCfg := c.cfg.Email
+	emailCfg.To = recipients
+	return notifier.NewEmailNotifier(emailCfg).Send("[电量监控] 测试通知", "这是一条测试邮件，用于确认邮件通知配置已生效。")
 }
 
 func (c *Checker) buildStatus(room config.Room) (*models.RoomStatus, error) {
@@ -233,13 +239,95 @@ func (c *Checker) shouldSendAlert(room config.Room, alerts []string, now time.Ti
 
 func (c *Checker) markAlertsSent(room config.Room, alerts []string, now time.Time) {
 	for _, alert := range alerts {
-		key := alertKey(room, alert)
-		c.lastAlert[key] = now
+		c.lastAlert[alertKey(room, alert)] = now
 	}
+}
+
+func (c *Checker) sendRoomEmail(room config.Room, summary, body string) error {
+	if !c.cfg.Email.Enabled {
+		return nil
+	}
+	if len(room.Recipients) == 0 {
+		return fmt.Errorf("宿舍未配置收件人地址")
+	}
+
+	emailCfg := c.cfg.Email
+	emailCfg.To = filterRecipients(room.Recipients)
+	return notifier.NewEmailNotifier(emailCfg).Send(summary, body)
+}
+
+func filterRecipients(recipients []string) []string {
+	filtered := make([]string, 0, len(recipients))
+	for _, recipient := range recipients {
+		recipient = strings.TrimSpace(recipient)
+		if recipient != "" {
+			filtered = append(filtered, recipient)
+		}
+	}
+	return filtered
 }
 
 func alertKey(room config.Room, alert string) string {
 	return room.Building + ":" + room.Room + ":" + alert
+}
+
+func (c *Checker) statusCachePath() string {
+	return c.cfg.DBPath + ".status.json"
+}
+
+func (c *Checker) saveStatusCache(data any) {
+	path := c.statusCachePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		log.Printf("[checker] 创建状态缓存目录失败: %v", err)
+		return
+	}
+
+	payload, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Printf("[checker] 序列化状态缓存失败: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		log.Printf("[checker] 写入状态缓存失败: %v", err)
+	}
+}
+
+func (c *Checker) loadStatusCache() ([]models.RoomStatus, error) {
+	data, err := os.ReadFile(c.statusCachePath())
+	if err != nil {
+		return nil, err
+	}
+
+	var statuses []models.RoomStatus
+	if err := json.Unmarshal(data, &statuses); err == nil && !looksLikeWrappedResults(statuses) {
+		return statuses, nil
+	}
+
+	var queryResults []models.QueryResult
+	if err := json.Unmarshal(data, &queryResults); err != nil {
+		return nil, err
+	}
+
+	statuses = make([]models.RoomStatus, 0, len(queryResults))
+	for _, result := range queryResults {
+		statuses = append(statuses, result.Room)
+	}
+	return statuses, nil
+}
+
+func looksLikeWrappedResults(statuses []models.RoomStatus) bool {
+	if len(statuses) == 0 {
+		return false
+	}
+
+	for _, status := range statuses {
+		if status.Label != "" || status.Building != "" || status.Room != "" || status.RemainingKWh != 0 || status.QueryStatus != "" {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *Checker) buildAlertMessage(status models.RoomStatus, alerts []string) (string, string) {

@@ -1,0 +1,11 @@
+[
+  {
+    "label": "44栋1207",
+    "building": "44",
+    "room": "1207",
+    "remaining_kwh": 124.23,
+    "meter_time": "2026-04-13T08:57:54Z",
+    "query_time": "2026-04-14T18:24:40Z",
+    "prediction_status": "预测不可用: insufficient data for prediction (need at least 2 unique samples)"
+  }
+]

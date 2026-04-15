@@ -48,7 +48,9 @@ o.rmempty = false
 o = s:option(Value, "room", "宿舍号")
 o.rmempty = false
 
-o = s:option(Value, "label", "备注名称", "例如：44栋1207")
+o = s:option(Value, "label", "备注名称")
+
+o = s:option(DynamicList, "recipients", "收件人地址", "该宿舍低电量预警邮件将发送给这些地址")
 
 -- 电量预测
 s = m:section(NamedSection, "prediction", "prediction", "电量耗尽预测")
@@ -88,27 +90,6 @@ o.password = true
 o:depends("enabled", "1")
 
 o = s:option(Value, "from_addr", "发件人地址")
-o:depends("enabled", "1")
-
-o = s:option(DynamicList, "to", "收件人地址")
-o:depends("enabled", "1")
-
--- 微信推送 (WxPusher)
-s = m:section(NamedSection, "wxpusher", "wxpusher", "微信推送 (WxPusher)")
-s.anonymous = true
-s.addremove = false
-
-o = s:option(Flag, "enabled", "启用微信推送")
-o.rmempty = false
-
-o = s:option(Value, "app_token", "AppToken", "在 WxPusher 后台获取的 AppToken")
-o:depends("enabled", "1")
-
-o = s:option(DynamicList, "uids", "用户 UID", "接收消息的用户 UID")
-o:depends("enabled", "1")
-
-o = s:option(DynamicList, "topic_ids", "主题 ID", "接收消息的主题 ID（可选）")
-o.datatype = "uinteger"
 o:depends("enabled", "1")
 
 return m

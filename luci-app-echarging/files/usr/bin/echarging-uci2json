@@ -47,54 +47,28 @@ config_get EMAIL_USER email username ""
 config_get EMAIL_PASS email password ""
 config_get EMAIL_FROM email from_addr ""
 
-EMAIL_TO=""
-append_email_to() {
-	[ -z "$1" ] && return
-	if [ -z "$EMAIL_TO" ]; then
-		EMAIL_TO="\"$1\""
-	else
-		EMAIL_TO="$EMAIL_TO,\"$1\""
-	fi
-}
-config_list_foreach email to append_email_to
-
-# --- Read wxpusher ---
-config_get WX_ENABLED wxpusher enabled 0
-config_get WX_TOKEN wxpusher app_token ""
-
-WX_UIDS=""
-append_wx_uid() {
-	[ -z "$1" ] && return
-	if [ -z "$WX_UIDS" ]; then
-		WX_UIDS="\"$1\""
-	else
-		WX_UIDS="$WX_UIDS,\"$1\""
-	fi
-}
-config_list_foreach wxpusher uids append_wx_uid
-
-WX_TOPICS=""
-append_wx_topic() {
-	[ -z "$1" ] && return
-	if [ -z "$WX_TOPICS" ]; then
-		WX_TOPICS="$1"
-	else
-		WX_TOPICS="$WX_TOPICS,$1"
-	fi
-}
-config_list_foreach wxpusher topic_ids append_wx_topic
-
 # --- Read rooms ---
 ROOMS=""
 add_room() {
-	local section="$1"
+	local section="$1" recipients_json
 	local building room label
 	config_get building "$section" building ""
 	config_get room "$section" room ""
 	config_get label "$section" label ""
 	[ -z "$building" ] || [ -z "$room" ] && return
 
-	local entry="{\"building\":\"$building\",\"room\":\"$room\",\"label\":\"$label\"}"
+	recipients_json=""
+	append_room_recipient() {
+		[ -z "$1" ] && return
+		if [ -z "$recipients_json" ]; then
+			recipients_json="\"$1\""
+		else
+			recipients_json="$recipients_json,\"$1\""
+		fi
+	}
+	config_list_foreach "$section" recipients append_room_recipient
+
+	local entry="{\"building\":\"$building\",\"room\":\"$room\",\"label\":\"$label\",\"recipients\":[${recipients_json}]}"
 	if [ -z "$ROOMS" ]; then
 		ROOMS="$entry"
 	else
@@ -111,7 +85,6 @@ fi
 
 # --- Convert booleans ---
 [ "$EMAIL_ENABLED" = "1" ] && EMAIL_ENABLED_JSON="true" || EMAIL_ENABLED_JSON="false"
-[ "$WX_ENABLED" = "1" ] && WX_ENABLED_JSON="true" || WX_ENABLED_JSON="false"
 
 # --- Write JSON ---
 cat > "$CONFIG_FILE" <<EOF
@@ -133,14 +106,7 @@ cat > "$CONFIG_FILE" <<EOF
     "smtp_port": ${SMTP_PORT},
     "username": "${EMAIL_USER}",
     "password": "${EMAIL_PASS}",
-    "from": "${EMAIL_FROM}",
-    "to": [${EMAIL_TO}]
-  },
-  "wxpusher": {
-    "enabled": ${WX_ENABLED_JSON},
-    "app_token": "${WX_TOKEN}",
-    "uids": [${WX_UIDS}],
-    "topic_ids": [${WX_TOPICS}]
+    "from": "${EMAIL_FROM}"
   },
   "db_path": "${DB_PATH}"
 }
