@@ -13,6 +13,8 @@ import (
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+var meterTimeLocation = loadMeterTimeLocation()
+
 type electricityResponse struct {
 	Success bool                  `json:"success"`
 	Data    electricityResponseV2 `json:"data"`
@@ -66,7 +68,7 @@ func GetCurrentStatus(building, room string) (*CurrentStatus, error) {
 
 	var meterTime *time.Time
 	if strings.TrimSpace(result.Data.Updatedt) != "" {
-		parsed, err := time.ParseInLocation("2006-01-02 15:04:05", result.Data.Updatedt, time.Local)
+		parsed, err := parseMeterTime(result.Data.Updatedt)
 		if err != nil {
 			return nil, fmt.Errorf("解析抄表时间失败: %w", err)
 		}
@@ -96,4 +98,16 @@ func parseFloat(raw json.RawMessage) (float64, error) {
 		return 0, err
 	}
 	return value, nil
+}
+
+func parseMeterTime(raw string) (time.Time, error) {
+	return time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(raw), meterTimeLocation)
+}
+
+func loadMeterTimeLocation() *time.Location {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err == nil {
+		return location
+	}
+	return time.FixedZone("Asia/Shanghai", 8*60*60)
 }

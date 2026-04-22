@@ -2,43 +2,56 @@ package prediction
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"luci-app-echarging-go/models"
 )
 
 // Calculate computes consumption rate and remaining time.
-// records must be sorted by query_time descending (newest first).
 func Calculate(records []models.ElectricityRecord, customDailyConsumption float64) (*models.PredictionResult, error) {
 	if len(records) == 0 {
 		return nil, errors.New("no records available")
 	}
 
-	current := records[0]
+	normalized := normalizeRecords(records)
+	if len(normalized) == 0 {
+		return nil, errors.New("no records available")
+	}
+
+	current := normalized[0]
 	now := effectiveTime(current)
 
 	if customDailyConsumption > 0 {
-		return buildResult(current.RemainingKWh, customDailyConsumption, now, len(records)), nil
+		return buildResult(current.RemainingKWh, customDailyConsumption, now, len(normalized)), nil
 	}
 
-	normalized := dedupeRecords(records)
-	if len(normalized) < 2 {
-		return nil, errors.New("insufficient data for prediction (need at least 2 unique samples)")
+	dailyRate, sampleCount := computeRate(normalized)
+	if sampleCount < 2 {
+		return nil, errors.New("insufficient data for prediction (need at least 2 samples in a consumption segment)")
 	}
-
-	dailyRate := computeRate(normalized)
 	if dailyRate <= 0 {
-		return nil, errors.New("unable to compute positive consumption rate (possible recharge)")
+		return nil, errors.New("unable to compute positive consumption rate")
 	}
 
-	return buildResult(current.RemainingKWh, dailyRate, now, len(normalized)), nil
+	return buildResult(current.RemainingKWh, dailyRate, now, sampleCount), nil
 }
 
-func dedupeRecords(records []models.ElectricityRecord) []models.ElectricityRecord {
+func normalizeRecords(records []models.ElectricityRecord) []models.ElectricityRecord {
+	sorted := append([]models.ElectricityRecord(nil), records...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		left := effectiveTime(sorted[i])
+		right := effectiveTime(sorted[j])
+		if left.Equal(right) {
+			return sorted[i].QueryTime.After(sorted[j].QueryTime)
+		}
+		return left.After(right)
+	})
+
 	seen := make(map[time.Time]bool, len(records))
 	result := make([]models.ElectricityRecord, 0, len(records))
 
-	for _, record := range records {
+	for _, record := range sorted {
 		ts := effectiveTime(record).UTC()
 		if seen[ts] {
 			continue
@@ -50,7 +63,40 @@ func dedupeRecords(records []models.ElectricityRecord) []models.ElectricityRecor
 	return result
 }
 
-func computeRate(records []models.ElectricityRecord) float64 {
+func computeRate(records []models.ElectricityRecord) (float64, int) {
+	segments := make([][]models.ElectricityRecord, 0, 1)
+	segment := make([]models.ElectricityRecord, 0, len(records))
+	segment = append(segment, records[0])
+
+	for i := 1; i < len(records); i++ {
+		older := records[i]
+		newer := records[i-1]
+		if older.RemainingKWh < newer.RemainingKWh {
+			segments = append(segments, segment)
+			segment = []models.ElectricityRecord{older}
+			continue
+		}
+		segment = append(segment, older)
+	}
+	segments = append(segments, segment)
+
+	bestSampleCount := 0
+	for _, segment := range segments {
+		if len(segment) < 2 {
+			continue
+		}
+		if bestSampleCount == 0 {
+			bestSampleCount = len(segment)
+		}
+		if rate := segmentRate(segment); rate > 0 {
+			return rate, len(segment)
+		}
+	}
+
+	return 0, bestSampleCount
+}
+
+func segmentRate(records []models.ElectricityRecord) float64 {
 	newest := records[0]
 	oldest := records[len(records)-1]
 
@@ -60,29 +106,6 @@ func computeRate(records []models.ElectricityRecord) float64 {
 	}
 
 	consumption := oldest.RemainingKWh - newest.RemainingKWh
-	if consumption > 0 {
-		return consumption / duration.Hours() * 24.0
-	}
-
-	var start, end int
-	for i := 1; i < len(records); i++ {
-		if records[i].RemainingKWh >= records[i-1].RemainingKWh {
-			end = i
-			continue
-		}
-		break
-	}
-
-	if end == start {
-		return 0
-	}
-
-	duration = effectiveTime(records[start]).Sub(effectiveTime(records[end]))
-	if duration <= 0 {
-		return 0
-	}
-
-	consumption = records[end].RemainingKWh - records[start].RemainingKWh
 	if consumption <= 0 {
 		return 0
 	}
