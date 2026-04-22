@@ -1,7 +1,5 @@
 {
-  "rooms": [
-    {"building": "44", "room": "1207", "label": "44栋1207", "recipients": ["admin@example.com"]}
-  ],
+  "rooms": [],
   "schedule": {
     "interval_minutes": 60,
     "check_hours": [8, 12, 18, 22]

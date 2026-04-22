@@ -4,6 +4,7 @@ luci-app-echarging_1.0.0-r2_all.ipk
 .gocache
 echarging
 echarging.db
+*.db.status.json
 request.txt
 requirments.txt
 example.py
