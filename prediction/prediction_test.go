@@ -1,6 +1,7 @@
 package prediction
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestCalculateNormalConsumption(t *testing.T) {
 	}
 }
 
-func TestCalculateUsesPostRechargeSegmentWhenAvailable(t *testing.T) {
+func TestCalculateAveragesSegmentsAcrossRechargeWhenAvailable(t *testing.T) {
 	records := []models.ElectricityRecord{
 		recordAt("2026-04-04T00:00:00Z", 115),
 		recordAt("2026-04-03T00:00:00Z", 120),
@@ -33,8 +34,8 @@ func TestCalculateUsesPostRechargeSegmentWhenAvailable(t *testing.T) {
 	result := mustCalculate(t, records)
 
 	assertClose(t, result.DailyConsumptionKWh, 5)
-	if result.SampleCount != 2 {
-		t.Fatalf("SampleCount = %d, want 2", result.SampleCount)
+	if result.SampleCount != 4 {
+		t.Fatalf("SampleCount = %d, want 4", result.SampleCount)
 	}
 }
 
@@ -54,7 +55,7 @@ func TestCalculateFallsBackToPreRechargeSegment(t *testing.T) {
 	}
 }
 
-func TestCalculateUsesNewestAvailableSegmentAcrossMultipleRecharges(t *testing.T) {
+func TestCalculateUsesWeightedSegmentsAcrossMultipleRecharges(t *testing.T) {
 	records := []models.ElectricityRecord{
 		recordAt("2026-04-06T00:00:00Z", 200),
 		recordAt("2026-04-05T00:00:00Z", 80),
@@ -66,9 +67,9 @@ func TestCalculateUsesNewestAvailableSegmentAcrossMultipleRecharges(t *testing.T
 
 	result := mustCalculate(t, records)
 
-	assertClose(t, result.DailyConsumptionKWh, 10)
-	if result.SampleCount != 3 {
-		t.Fatalf("SampleCount = %d, want 3", result.SampleCount)
+	assertClose(t, result.DailyConsumptionKWh, 25.0/3.0)
+	if result.SampleCount != 5 {
+		t.Fatalf("SampleCount = %d, want 5", result.SampleCount)
 	}
 }
 
@@ -119,6 +120,20 @@ func TestCalculateSortsByEffectiveTime(t *testing.T) {
 	wantEmptyTime := newerMeterTime.Add(18 * 24 * time.Hour)
 	if !result.EstimatedEmptyTime.Equal(wantEmptyTime) {
 		t.Fatalf("EstimatedEmptyTime = %s, want %s", result.EstimatedEmptyTime, wantEmptyTime)
+	}
+}
+
+func TestCalculateReportsNoConsumptionObservedForFlatRechargeSegments(t *testing.T) {
+	records := []models.ElectricityRecord{
+		recordAt("2026-04-23T20:13:02Z", 223.33),
+		recordAt("2026-04-23T12:13:02Z", 223.33),
+		recordAt("2026-04-21T15:52:58Z", 14.33),
+		recordAt("2026-04-21T15:52:58Z", 14.33),
+	}
+
+	_, err := Calculate(records, 0)
+	if !errors.Is(err, ErrNoConsumptionObserved) {
+		t.Fatalf("Calculate error = %v, want %v", err, ErrNoConsumptionObserved)
 	}
 }
 

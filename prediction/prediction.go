@@ -8,15 +8,21 @@ import (
 	"luci-app-echarging-go/models"
 )
 
+var (
+	ErrNoRecords             = errors.New("no records available")
+	ErrInsufficientData      = errors.New("insufficient data for prediction")
+	ErrNoConsumptionObserved = errors.New("no consumption observed in recent samples")
+)
+
 // Calculate computes consumption rate and remaining time.
 func Calculate(records []models.ElectricityRecord, customDailyConsumption float64) (*models.PredictionResult, error) {
 	if len(records) == 0 {
-		return nil, errors.New("no records available")
+		return nil, ErrNoRecords
 	}
 
 	normalized := normalizeRecords(records)
 	if len(normalized) == 0 {
-		return nil, errors.New("no records available")
+		return nil, ErrNoRecords
 	}
 
 	current := normalized[0]
@@ -28,10 +34,10 @@ func Calculate(records []models.ElectricityRecord, customDailyConsumption float6
 
 	dailyRate, sampleCount := computeRate(normalized)
 	if sampleCount < 2 {
-		return nil, errors.New("insufficient data for prediction (need at least 2 samples in a consumption segment)")
+		return nil, ErrInsufficientData
 	}
 	if dailyRate <= 0 {
-		return nil, errors.New("unable to compute positive consumption rate")
+		return nil, ErrNoConsumptionObserved
 	}
 
 	return buildResult(current.RemainingKWh, dailyRate, now, sampleCount), nil
@@ -80,37 +86,56 @@ func computeRate(records []models.ElectricityRecord) (float64, int) {
 	}
 	segments = append(segments, segment)
 
-	bestSampleCount := 0
+	var totalConsumption float64
+	var totalHours float64
+	usedSampleCount := 0
 	for _, segment := range segments {
 		if len(segment) < 2 {
 			continue
 		}
-		if bestSampleCount == 0 {
-			bestSampleCount = len(segment)
+
+		consumption, hours := segmentConsumption(segment)
+		if consumption <= 0 || hours <= 0 {
+			continue
 		}
-		if rate := segmentRate(segment); rate > 0 {
-			return rate, len(segment)
-		}
+
+		totalConsumption += consumption
+		totalHours += hours
+		usedSampleCount += len(segment)
 	}
 
-	return 0, bestSampleCount
+	if totalHours <= 0 {
+		return 0, countEligibleSamples(segments)
+	}
+
+	return totalConsumption / totalHours * 24.0, usedSampleCount
 }
 
-func segmentRate(records []models.ElectricityRecord) float64 {
+func segmentConsumption(records []models.ElectricityRecord) (float64, float64) {
 	newest := records[0]
 	oldest := records[len(records)-1]
 
 	duration := effectiveTime(newest).Sub(effectiveTime(oldest))
 	if duration <= 0 {
-		return 0
+		return 0, 0
 	}
 
 	consumption := oldest.RemainingKWh - newest.RemainingKWh
 	if consumption <= 0 {
-		return 0
+		return 0, 0
 	}
 
-	return consumption / duration.Hours() * 24.0
+	return consumption, duration.Hours()
+}
+
+func countEligibleSamples(segments [][]models.ElectricityRecord) int {
+	count := 0
+	for _, segment := range segments {
+		if len(segment) >= 2 {
+			count += len(segment)
+		}
+	}
+	return count
 }
 
 func buildResult(remainingKWh, dailyRate float64, now time.Time, sampleCount int) *models.PredictionResult {

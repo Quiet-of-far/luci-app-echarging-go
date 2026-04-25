@@ -3,6 +3,7 @@ package checker
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -195,7 +196,7 @@ func (c *Checker) buildStatus(room config.Room) (*models.RoomStatus, error) {
 
 	pred, err := prediction.Calculate(records, c.cfg.Prediction.CustomDailyConsumption)
 	if err != nil {
-		status.PredictionStatus = fmt.Sprintf("预测不可用: %v", err)
+		status.PredictionStatus = predictionStatusMessage(err)
 		return status, nil
 	}
 
@@ -203,6 +204,19 @@ func (c *Checker) buildStatus(room config.Room) (*models.RoomStatus, error) {
 	status.PredictedEmptyTime = &pred.EstimatedEmptyTime
 	status.DailyConsumptionKWh = &pred.DailyConsumptionKWh
 	return status, nil
+}
+
+func predictionStatusMessage(err error) string {
+	switch {
+	case errors.Is(err, prediction.ErrNoRecords):
+		return "预测不可用: 暂无历史记录"
+	case errors.Is(err, prediction.ErrInsufficientData):
+		return "预测不可用: 有效历史记录不足"
+	case errors.Is(err, prediction.ErrNoConsumptionObserved):
+		return "预测不可用: 最近样本未观察到电量下降，可能刚充值或抄表数据尚未更新"
+	default:
+		return fmt.Sprintf("预测不可用: %v", err)
+	}
 }
 
 func (c *Checker) evaluateAlerts(status models.RoomStatus) []string {
