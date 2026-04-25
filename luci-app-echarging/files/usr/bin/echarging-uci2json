@@ -7,16 +7,16 @@
 
 CONFIG_FILE="/var/etc/echarging.json"
 mkdir -p /var/etc
-mkdir -p /var/lib/echarging
 
 config_load echarging
 
 # --- Read global ---
 config_get LOW_ENERGY_THRESHOLD global low_energy_threshold ""
 config_get THRESHOLD_LEGACY global threshold 15
-config_get DB_PATH global db_path /var/lib/echarging/echarging.db
+config_get DB_PATH global db_path /etc/echarging/echarging.db
 config_get DEPLETION_ALERT_DAYS global depletion_alert_days 0
 config_get MAX_RECORDS_PER_ROOM global max_records_per_room 500
+mkdir -p "$(dirname "$DB_PATH")"
 
 [ -n "$LOW_ENERGY_THRESHOLD" ] || LOW_ENERGY_THRESHOLD="$THRESHOLD_LEGACY"
 

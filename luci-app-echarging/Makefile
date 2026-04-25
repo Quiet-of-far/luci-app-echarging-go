@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-echarging
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=4
 
 PKG_MAINTAINER:=Quiet
 PKG_LICENSE:=MIT
@@ -56,6 +56,30 @@ endef
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/echarging
+endef
+
+define Package/$(PKG_NAME)/postinst
+#!/bin/sh
+[ -n "$$IPKG_INSTROOT" ] && exit 0
+
+OLD_DB="/var/lib/echarging/echarging.db"
+NEW_DB="/etc/echarging/echarging.db"
+
+mkdir -p /etc/echarging
+
+if command -v uci >/dev/null 2>&1; then
+	current_db="$$(uci -q get echarging.global.db_path)"
+	if [ -z "$$current_db" ] || [ "$$current_db" = "$$OLD_DB" ]; then
+		uci set echarging.global.db_path="$$NEW_DB"
+		uci commit echarging
+	fi
+fi
+
+if [ -f "$$OLD_DB" ] && [ ! -f "$$NEW_DB" ]; then
+	cp "$$OLD_DB" "$$NEW_DB"
+fi
+
+exit 0
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
