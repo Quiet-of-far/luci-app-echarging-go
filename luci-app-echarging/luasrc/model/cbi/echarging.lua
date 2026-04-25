@@ -24,6 +24,10 @@ o.default = "0"
 o = s:option(Value, "db_path", "数据库路径")
 o.default = "/var/lib/echarging/echarging.db"
 
+o = s:option(Value, "max_records_per_room", "最大历史记录数（每宿舍）", "超过此数量时删除该宿舍最早的历史记录；设为 0 表示不限制")
+o.datatype = "uinteger"
+o.default = "500"
+
 -- 定时任务
 s = m:section(NamedSection, "schedule", "schedule", "定时任务")
 s.anonymous = true

@@ -16,6 +16,7 @@ config_get LOW_ENERGY_THRESHOLD global low_energy_threshold ""
 config_get THRESHOLD_LEGACY global threshold 15
 config_get DB_PATH global db_path /var/lib/echarging/echarging.db
 config_get DEPLETION_ALERT_DAYS global depletion_alert_days 0
+config_get MAX_RECORDS_PER_ROOM global max_records_per_room 500
 
 [ -n "$LOW_ENERGY_THRESHOLD" ] || LOW_ENERGY_THRESHOLD="$THRESHOLD_LEGACY"
 
@@ -96,6 +97,7 @@ cat > "$CONFIG_FILE" <<EOF
   },
   "low_energy_threshold": ${LOW_ENERGY_THRESHOLD},
   "depletion_alert_days": ${DEPLETION_ALERT_DAYS},
+  "max_records_per_room": ${MAX_RECORDS_PER_ROOM},
   "prediction": {
     "sample_count": ${SAMPLE_COUNT},
     "custom_daily_consumption": ${CUSTOM_DAILY_CONSUMPTION}

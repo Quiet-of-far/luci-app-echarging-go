@@ -53,7 +53,7 @@ func (c *Checker) QueryRoom(room config.Room) (*models.QueryResult, error) {
 		MeterTime:    current.MeterTime,
 	}
 
-	if err := c.store.InsertRecord(record); err != nil {
+	if _, err := c.store.InsertRecordIfChanged(record, c.cfg.MaxRecordsPerRoom); err != nil {
 		return nil, fmt.Errorf("存储记录失败: %w", err)
 	}
 
@@ -61,6 +61,10 @@ func (c *Checker) QueryRoom(room config.Room) (*models.QueryResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	status.RemainingKWh = record.RemainingKWh
+	status.MeterTime = record.MeterTime
+	status.QueryTime = record.QueryTime
 
 	log.Printf("[checker] %s 当前剩余电量: %.2f 度", room.Label, status.RemainingKWh)
 	return &models.QueryResult{Room: *status}, nil

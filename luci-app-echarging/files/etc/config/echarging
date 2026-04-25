@@ -3,6 +3,7 @@ config echarging 'global'
 	option low_energy_threshold '15'
 	option depletion_alert_days '0'
 	option db_path '/var/lib/echarging/echarging.db'
+	option max_records_per_room '500'
 
 config schedule 'schedule'
 	option interval_minutes '60'

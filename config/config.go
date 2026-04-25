@@ -43,6 +43,7 @@ type Config struct {
 	Email              EmailConfig      `json:"email"`
 	Prediction         PredictionConfig `json:"prediction"`
 	DBPath             string           `json:"db_path"`
+	MaxRecordsPerRoom  int              `json:"max_records_per_room"`
 }
 
 func Load(path string) (*Config, error) {
@@ -56,12 +57,19 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	cfg.applyDefaults()
+	var rawDefaults struct {
+		MaxRecordsPerRoom *int `json:"max_records_per_room"`
+	}
+	if err := json.Unmarshal(data, &rawDefaults); err != nil {
+		return nil, err
+	}
+
+	cfg.applyDefaults(rawDefaults.MaxRecordsPerRoom != nil)
 	cfg.resolvePaths(path)
 	return &cfg, nil
 }
 
-func (c *Config) applyDefaults() {
+func (c *Config) applyDefaults(hasMaxRecordsPerRoom bool) {
 	if c.LowEnergyThreshold == 0 {
 		if c.ThresholdLegacy > 0 {
 			c.LowEnergyThreshold = c.ThresholdLegacy
@@ -71,6 +79,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.DBPath == "" {
 		c.DBPath = "echarging.db"
+	}
+	if !hasMaxRecordsPerRoom {
+		c.MaxRecordsPerRoom = 500
 	}
 	if c.Prediction.SampleCount == 0 {
 		c.Prediction.SampleCount = 10

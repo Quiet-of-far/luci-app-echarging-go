@@ -3,12 +3,15 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"luci-app-echarging-go/models"
 
 	_ "modernc.org/sqlite"
 )
+
+const balanceEpsilon = 1e-6
 
 type Store struct {
 	db *sql.DB
@@ -80,18 +83,75 @@ func (s *Store) hasColumn(table, column string) (bool, error) {
 }
 
 func (s *Store) InsertRecord(r models.ElectricityRecord) error {
+	return insertRecord(s.db, r)
+}
+
+func (s *Store) InsertRecordIfChanged(r models.ElectricityRecord, maxRecordsPerRoom int) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	latest, err := getLatestRecord(tx, r.Building, r.Room)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if err == nil && sameReading(*latest, r) {
+		return false, tx.Commit()
+	}
+
+	if err := insertRecord(tx, r); err != nil {
+		return false, err
+	}
+	if maxRecordsPerRoom > 0 {
+		if err := pruneOldRecords(tx, r.Building, r.Room, maxRecordsPerRoom); err != nil {
+			return false, err
+		}
+	}
+
+	return true, tx.Commit()
+}
+
+func insertRecord(execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}, r models.ElectricityRecord) error {
 	var meterTime any
 	if r.MeterTime != nil {
 		meterTime = r.MeterTime.UTC().Format(time.RFC3339)
 	}
 
-	_, err := s.db.Exec(
+	_, err := execer.Exec(
 		"INSERT INTO balance_records (building, room, balance, query_time, meter_time) VALUES (?, ?, ?, ?, ?)",
 		r.Building,
 		r.Room,
 		r.RemainingKWh,
 		r.QueryTime.UTC().Format(time.RFC3339),
 		meterTime,
+	)
+	return err
+}
+
+func pruneOldRecords(execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}, building, room string, maxRecords int) error {
+	_, err := execer.Exec(
+		`DELETE FROM balance_records
+		WHERE building = ?
+		  AND room = ?
+		  AND id NOT IN (
+			SELECT id
+			FROM balance_records
+			WHERE building = ?
+			  AND room = ?
+			ORDER BY query_time DESC, id DESC
+			LIMIT ?
+		  )`,
+		building,
+		room,
+		building,
+		room,
+		maxRecords,
 	)
 	return err
 }
@@ -121,8 +181,14 @@ func (s *Store) GetRecentRecords(building, room string, limit int) ([]models.Ele
 }
 
 func (s *Store) GetLatestRecord(building, room string) (*models.ElectricityRecord, error) {
-	rows, err := s.db.Query(
-		"SELECT id, building, room, balance, query_time, meter_time FROM balance_records WHERE building = ? AND room = ? ORDER BY query_time DESC LIMIT 1",
+	return getLatestRecord(s.db, building, room)
+}
+
+func getLatestRecord(queryer interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}, building, room string) (*models.ElectricityRecord, error) {
+	rows, err := queryer.Query(
+		"SELECT id, building, room, balance, query_time, meter_time FROM balance_records WHERE building = ? AND room = ? ORDER BY query_time DESC, id DESC LIMIT 1",
 		building,
 		room,
 	)
@@ -140,6 +206,20 @@ func (s *Store) GetLatestRecord(building, room string) (*models.ElectricityRecor
 		return nil, err
 	}
 	return &record, nil
+}
+
+func sameReading(left, right models.ElectricityRecord) bool {
+	if math.Abs(left.RemainingKWh-right.RemainingKWh) > balanceEpsilon {
+		return false
+	}
+	return sameMeterTime(left.MeterTime, right.MeterTime)
+}
+
+func sameMeterTime(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.UTC().Equal(right.UTC())
 }
 
 func scanRecord(scanner interface{ Scan(dest ...any) error }) (models.ElectricityRecord, error) {
