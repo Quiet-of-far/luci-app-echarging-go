@@ -14,10 +14,12 @@ define Package/$(PKG_NAME)
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI support for 5echarging
+  PKGARCH:=all
+  DEPENDS:=+luci-base +rpcd +uclient-fetch +ca-bundle
 endef
 
 define Package/$(PKG_NAME)/description
-宿舍电费自动查询、预测与低余额提醒
+宿舍电费自动查询、预测与低余额提醒。Go 核心二进制通过 LuCI 在线下载或离线上传安装。
 endef
 
 define Build/Prepare
@@ -28,7 +30,6 @@ endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) ./files/usr/bin/5echarging $(1)/usr/bin/5echarging
 	$(INSTALL_BIN) ./files/usr/bin/5echarging-uci2json $(1)/usr/bin/5echarging-uci2json
 
 	$(INSTALL_DIR) $(1)/etc/config
@@ -63,24 +64,17 @@ define Package/$(PKG_NAME)/postinst
 
 OLD_DB="/var/lib/echarging/echarging.db"
 LEGACY_DB="/etc/echarging/echarging.db"
-NEW_DB="/etc/5echarging/5echarging.db"
+	OLD_DEFAULT_DB="/etc/5echarging/5echarging.db"
+	NEW_DB="/etc/5echarging/5echarging.bbolt"
 
 mkdir -p /etc/5echarging
 
 if command -v uci >/dev/null 2>&1; then
 	current_db="$$(uci -q get 5echarging.global.db_path)"
-	if [ -z "$$current_db" ] || [ "$$current_db" = "$$OLD_DB" ] || [ "$$current_db" = "$$LEGACY_DB" ]; then
+	if [ -z "$$current_db" ] || [ "$$current_db" = "$$OLD_DB" ] || [ "$$current_db" = "$$LEGACY_DB" ] || [ "$$current_db" = "$$OLD_DEFAULT_DB" ]; then
 		uci set 5echarging.global.db_path="$$NEW_DB"
 		uci commit 5echarging
 	fi
-fi
-
-if [ -f "$$OLD_DB" ] && [ ! -f "$$NEW_DB" ]; then
-	cp "$$OLD_DB" "$$NEW_DB"
-fi
-
-if [ -f "$$LEGACY_DB" ] && [ ! -f "$$NEW_DB" ]; then
-	cp "$$LEGACY_DB" "$$NEW_DB"
 fi
 
 exit 0

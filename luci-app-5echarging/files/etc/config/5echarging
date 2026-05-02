@@ -2,7 +2,7 @@ config 5echarging 'global'
 	option enabled '1'
 	option low_energy_threshold '15'
 	option depletion_alert_days '0'
-	option db_path '/etc/5echarging/5echarging.db'
+	option db_path '/etc/5echarging/5echarging.bbolt'
 	option max_records_per_room '500'
 
 config schedule 'schedule'

@@ -1,8 +1,16 @@
 <%
 local dispatcher = require("luci.dispatcher")
+local fs = require("nixio.fs")
+local http = require("luci.http")
+local util = require("luci.util")
 local status_url = dispatcher.build_url("admin", "services", "5echarging", "status")
 local query_url = dispatcher.build_url("admin", "services", "5echarging", "query_now")
 local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_email")
+local download_core_url = dispatcher.build_url("admin", "services", "5echarging", "download_core")
+local upload_core_url = dispatcher.build_url("admin", "services", "5echarging", "upload_core")
+local core_ready = fs.access("/usr/bin/5echarging", "x")
+local core_msg = http.formvalue("core_msg")
+local core_err = http.formvalue("core_err")
 %>
 
 <style type="text/css">
@@ -20,6 +28,35 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 		flex-wrap: wrap;
 		gap: 0.75rem;
 		margin: 1rem 0;
+		align-items: center;
+	}
+
+	.echarging-core {
+		margin: 1rem 0;
+		padding: 0.75rem;
+		border: 1px solid rgba(127, 127, 127, 0.22);
+		border-radius: 8px;
+		background: rgba(127, 127, 127, 0.07);
+	}
+
+	.echarging-core-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		align-items: center;
+		margin-top: 0.75rem;
+	}
+
+	.echarging-core-result {
+		margin-top: 0.5rem;
+	}
+
+	.echarging-core-ok {
+		color: #1a7f37;
+	}
+
+	.echarging-core-error {
+		color: #c52828;
 	}
 
 	.echarging-status-message {
@@ -57,6 +94,42 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 <div class="echarging-panel">
 	<p class="echarging-status-message">修改配置后请先保存并应用。手动查询会立即刷新全部宿舍的状态。</p>
 
+	<div class="echarging-core">
+		<div>
+			核心状态：
+			<% if core_ready then %>
+				<span class="echarging-core-ok">/usr/bin/5echarging 已就绪</span>
+			<% else %>
+				<span class="echarging-core-error">未检测到 /usr/bin/5echarging，请先下载或上传核心</span>
+			<% end %>
+		</div>
+
+		<div class="echarging-core-row">
+			<label for="echarging-core-arch">架构：</label>
+			<select id="echarging-core-arch">
+				<option value="amd64">amd64</option>
+				<option value="arm">arm</option>
+				<option value="arm64">arm64</option>
+				<option value="mips">mips</option>
+				<option value="mipsle">mipsle</option>
+			</select>
+			<button class="btn cbi-button cbi-button-apply" type="button" id="echarging-download-core">在线下载核心</button>
+		</div>
+
+		<div class="echarging-core-row">
+			<input type="file" id="echarging-core-file" />
+			<button class="btn cbi-button cbi-button-apply" type="button" id="echarging-upload-core">上传并安装核心</button>
+		</div>
+
+		<div id="echarging-core-result" class="echarging-core-result">
+			<% if core_msg and #core_msg > 0 then %>
+				<span class="echarging-core-ok"><%=util.pcdata(core_msg)%></span>
+			<% elseif core_err and #core_err > 0 then %>
+				<span class="echarging-core-error"><%=util.pcdata(core_err)%></span>
+			<% end %>
+		</div>
+	</div>
+
 	<div class="echarging-actions">
 		<button class="btn cbi-button cbi-button-action" type="button" onclick="echargingRequest('<%=query_url%>', '手动查询已完成')">手动查询</button>
 		<button class="btn cbi-button cbi-button-apply" type="button" onclick="echargingRequest('<%=email_url%>', '邮件测试通知已发送')">测试邮件通知</button>
@@ -67,10 +140,13 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 	<div id="echarging-cards" class="echarging-cards"></div>
 </div>
 
-<script type="text/javascript">
-	function echargingFeedback(message, isError) {
-		var el = document.getElementById('echarging-feedback');
-		el.style.display = '';
+	<script type="text/javascript">
+		var echargingDownloadCoreUrl = '<%=download_core_url%>';
+		var echargingUploadCoreUrl = '<%=upload_core_url%>';
+
+		function echargingFeedback(message, isError) {
+			var el = document.getElementById('echarging-feedback');
+			el.style.display = '';
 		el.className = isError ? 'alert-message error' : 'alert-message notice';
 		el.textContent = message;
 	}
@@ -109,8 +185,79 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 			return '暂无';
 		var diff = date.getTime() - Date.now();
 		var days = Math.floor(Math.abs(diff) / 86400000);
-		return diff >= 0 ? (days + '天后') : (days + '天前');
-	}
+			return diff >= 0 ? (days + '天后') : (days + '天前');
+		}
+
+		function echargingSetCoreResult(ok, message) {
+			var el = document.getElementById('echarging-core-result');
+			if (!el)
+				return;
+			el.className = ok ? 'echarging-core-result echarging-core-ok' : 'echarging-core-result echarging-core-error';
+			el.textContent = message || '';
+		}
+
+		function echargingParseCoreResponse(text) {
+			if (!text)
+				return { ok: false, message: '返回为空' };
+			if (text.indexOf('OK:') === 0)
+				return { ok: true, message: text.substring(3) };
+			if (text.indexOf('ERR:') === 0)
+				return { ok: false, message: text.substring(4) };
+			return { ok: false, message: text };
+		}
+
+		function echargingReloadSoon() {
+			window.setTimeout(function() {
+				window.location.reload();
+			}, 900);
+		}
+
+		function echargingInstallCoreFromRelease() {
+			var arch = document.getElementById('echarging-core-arch');
+			var value = arch ? arch.value : 'amd64';
+			echargingSetCoreResult(true, '正在下载并安装核心，请稍候...');
+			fetch(echargingDownloadCoreUrl + '?arch=' + encodeURIComponent(value) + '&xhr=1', {
+				method: 'GET',
+				credentials: 'same-origin'
+			}).then(function(resp) {
+				return resp.text();
+			}).then(function(text) {
+				var result = echargingParseCoreResponse(text);
+				echargingSetCoreResult(result.ok, result.message);
+				if (result.ok)
+					echargingReloadSoon();
+			}).catch(function(err) {
+				echargingSetCoreResult(false, err && err.message ? err.message : '请求失败');
+			});
+		}
+
+		function echargingUploadCore() {
+			var file = document.getElementById('echarging-core-file');
+			if (!file || !file.files || !file.files.length) {
+				echargingSetCoreResult(false, '请选择一个核心文件');
+				return;
+			}
+
+			var fd = new FormData();
+			fd.append('xhr', '1');
+			fd.append('core_file', file.files[0]);
+
+			echargingSetCoreResult(true, '正在上传并安装核心，请稍候...');
+			fetch(echargingUploadCoreUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: fd
+			}).then(function(resp) {
+				return resp.text();
+			}).then(function(text) {
+				var result = echargingParseCoreResponse(text);
+				echargingSetCoreResult(result.ok, result.message);
+				if (result.ok)
+					echargingReloadSoon();
+			}).catch(function(err) {
+				echargingSetCoreResult(false, err && err.message ? err.message : '请求失败');
+			});
+		}
 
 	function echargingRenderCard(item) {
 		var remainingValue = parseFloat(item.remaining_kwh);
@@ -175,8 +322,8 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 		});
 	}
 
-	function echargingRequest(url, successMessage) {
-		echargingFeedback('请求处理中...', false);
+		function echargingRequest(url, successMessage) {
+			echargingFeedback('请求处理中...', false);
 		XHR.get(url, null, function(x, data) {
 			if (!data || data.status === 'error') {
 				echargingFeedback(data && data.message ? data.message : '请求失败', true);
@@ -186,8 +333,16 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 			if (Array.isArray(data))
 				echargingRender(data);
 			echargingLoadStatus();
-		});
-	}
+			});
+		}
 
-	echargingLoadStatus();
-</script>
+		var echargingDownloadCoreButton = document.getElementById('echarging-download-core');
+		if (echargingDownloadCoreButton)
+			echargingDownloadCoreButton.addEventListener('click', echargingInstallCoreFromRelease);
+
+		var echargingUploadCoreButton = document.getElementById('echarging-upload-core');
+		if (echargingUploadCoreButton)
+			echargingUploadCoreButton.addEventListener('click', echargingUploadCore);
+
+		echargingLoadStatus();
+	</script>

@@ -1,0 +1,97 @@
+name: build
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            artifact: 5echarging-linux-amd64
+          - goos: linux
+            goarch: arm
+            env: GOARM=7
+            artifact: 5echarging-linux-arm
+          - goos: linux
+            goarch: arm64
+            artifact: 5echarging-linux-arm64
+          - goos: linux
+            goarch: mips
+            env: GOMIPS=softfloat
+            artifact: 5echarging-linux-mips
+          - goos: linux
+            goarch: mipsle
+            env: GOMIPS=softfloat
+            artifact: 5echarging-linux-mipsle
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Prepare build environment
+        run: mkdir -p dist
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          if [ -n "${{ matrix.env || '' }}" ]; then
+            export ${{ matrix.env }}
+          fi
+          go build -trimpath -ldflags="-s -w" -o "dist/${ARTIFACT}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    name: Upload release assets
+    if: github.event_name == 'release'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifacts
+        run: |
+          find dist -mindepth 2 -type f -exec mv {} dist/ \;
+          find dist -mindepth 1 -type d -empty -delete
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum 5echarging-linux-* > SHA256SUMS.txt
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/5echarging-linux-*
+            dist/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
