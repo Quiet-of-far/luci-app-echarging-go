@@ -94,7 +94,7 @@ jobs:
           elif [ -n "$INPUT_RELEASE_TAG" ]; then
             tag="$INPUT_RELEASE_TAG"
           else
-            tag="$(gh release view --json tagName --jq .tagName)"
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
           fi
 
           if [ -z "$tag" ]; then
