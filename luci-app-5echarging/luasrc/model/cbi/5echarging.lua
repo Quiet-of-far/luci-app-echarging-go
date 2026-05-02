@@ -54,7 +54,7 @@ o.rmempty = false
 
 o = s:option(Value, "label", "备注名称")
 
-o = s:option(DynamicList, "recipients", "收件人地址", "该宿舍低电量预警邮件将发送给这些地址")
+o = s:option(DynamicList, "recipients", "收件人地址")
 
 -- 电量预测
 s = m:section(NamedSection, "prediction", "prediction", "电量耗尽预测")

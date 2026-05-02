@@ -60,6 +60,7 @@ local email_url = dispatcher.build_url("admin", "services", "5echarging", "test_
 	<div class="echarging-actions">
 		<button class="btn cbi-button cbi-button-action" type="button" onclick="echargingRequest('<%=query_url%>', '手动查询已完成')">手动查询</button>
 		<button class="btn cbi-button cbi-button-apply" type="button" onclick="echargingRequest('<%=email_url%>', '邮件测试通知已发送')">测试邮件通知</button>
+		<button class="btn cbi-button cbi-button-action" type="button" onclick="window.open('http://202.192.240.231/recharge.html', '_blank', 'noopener')">五邑官方电费页</button>
 	</div>
 
 	<div id="echarging-feedback" class="alert-message notice" style="display:none"></div>
