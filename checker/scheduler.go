@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"luci-app-echarging-go/api"
-	"luci-app-echarging-go/config"
-	"luci-app-echarging-go/models"
-	"luci-app-echarging-go/notifier"
-	"luci-app-echarging-go/prediction"
-	"luci-app-echarging-go/storage"
+	"luci-app-5echarging-go/api"
+	"luci-app-5echarging-go/config"
+	"luci-app-5echarging-go/models"
+	"luci-app-5echarging-go/notifier"
+	"luci-app-5echarging-go/prediction"
+	"luci-app-5echarging-go/storage"
 )
 
 const (
@@ -174,7 +174,7 @@ func (c *Checker) TestEmail() error {
 
 	emailCfg := c.cfg.Email
 	emailCfg.To = recipients
-	return notifier.NewEmailNotifier(emailCfg).Send("[电量监控] 测试通知", "这是一条测试邮件，用于确认邮件通知配置已生效。")
+	return notifier.NewEmailNotifier(emailCfg).Send("[抑疑电止] 测试通知", "这是一条测试邮件，用于确认邮件通知配置已生效。")
 }
 
 func (c *Checker) buildStatus(room config.Room) (*models.RoomStatus, error) {

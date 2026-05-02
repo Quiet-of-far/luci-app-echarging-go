@@ -1,4 +1,4 @@
-module luci-app-echarging-go
+module luci-app-5echarging-go
 
 go 1.26.1
 

@@ -9,13 +9,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"luci-app-echarging-go/checker"
-	"luci-app-echarging-go/config"
-	"luci-app-echarging-go/storage"
+	"luci-app-5echarging-go/checker"
+	"luci-app-5echarging-go/config"
+	"luci-app-5echarging-go/storage"
 )
 
 func main() {
-	configPath := flag.String("config", "/var/etc/echarging.json", "配置文件路径")
+	configPath := flag.String("config", "/var/etc/5echarging.json", "配置文件路径")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -73,7 +73,7 @@ func runDaemon(c *checker.Checker) {
 		close(stop)
 	}()
 
-	log.Println("电量监控已启动")
+	log.Println("抑疑电止已启动")
 	c.Run(stop)
 	log.Println("已退出")
 }

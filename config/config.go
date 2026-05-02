@@ -78,7 +78,7 @@ func (c *Config) applyDefaults(hasMaxRecordsPerRoom bool) {
 		}
 	}
 	if c.DBPath == "" {
-		c.DBPath = "echarging.db"
+		c.DBPath = "5echarging.db"
 	}
 	if !hasMaxRecordsPerRoom {
 		c.MaxRecordsPerRoom = 500

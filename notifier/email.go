@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/jordan-wright/email"
-	"luci-app-echarging-go/config"
+	"luci-app-5echarging-go/config"
 )
 
 type EmailNotifier struct {

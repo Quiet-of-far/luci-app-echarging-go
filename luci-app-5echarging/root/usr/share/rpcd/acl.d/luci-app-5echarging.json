@@ -1,0 +1,16 @@
+{
+	"luci-app-5echarging": {
+		"description": "Grant access to 5echarging configuration",
+		"read": {
+			"uci": ["5echarging"],
+			"file": {
+				"/usr/bin/5echarging": ["exec"],
+				"/usr/bin/5echarging-uci2json": ["exec"],
+				"/etc/init.d/5echarging": ["exec"]
+			}
+		},
+		"write": {
+			"uci": ["5echarging"]
+		}
+	}
+}

@@ -1,0 +1,14 @@
+{
+	"admin/services/5echarging": {
+		"title": "抑疑电止",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "cbi/5echarging"
+		},
+		"depends": {
+			"acl": ["luci-app-5echarging"],
+			"uci": {"5echarging": true}
+		}
+	}
+}

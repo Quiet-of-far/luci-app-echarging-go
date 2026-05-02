@@ -18,6 +18,6 @@
     "password": "",
     "from": "user@example.com"
   },
-  "db_path": "echarging.db",
+  "db_path": "5echarging.db",
   "max_records_per_room": 500
 }
