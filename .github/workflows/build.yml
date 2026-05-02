@@ -2,8 +2,13 @@ name: build
 
 on:
   release:
-    types: [created]
+    types: [created, published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to upload assets to. Leave empty to use the latest release."
+        required: false
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -68,13 +73,34 @@ jobs:
 
   release:
     name: Upload release assets
-    if: github.event_name == 'release'
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      - name: Resolve release tag
+        id: release_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag || '' }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+        run: |
+          if [ -n "$EVENT_RELEASE_TAG" ]; then
+            tag="$EVENT_RELEASE_TAG"
+          elif [ -n "$INPUT_RELEASE_TAG" ]; then
+            tag="$INPUT_RELEASE_TAG"
+          else
+            tag="$(gh release view --json tagName --jq .tagName)"
+          fi
+
+          if [ -z "$tag" ]; then
+            echo "Unable to resolve release tag" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
@@ -93,6 +119,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           files: |
             dist/5echarging-linux-*
             dist/SHA256SUMS.txt
