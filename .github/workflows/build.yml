@@ -2,13 +2,16 @@ name: build
 
 on:
   release:
-    types: [created, published]
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
         description: "Release tag to upload assets to. Leave empty to use the latest release."
         required: false
         type: string
+
+permissions:
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -100,6 +103,7 @@ jobs:
           fi
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag '$tag' for event '$GITHUB_EVENT_NAME' on ref '$GITHUB_REF'"
 
       - name: Download artifacts
         uses: actions/download-artifact@v7
@@ -120,6 +124,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
+          overwrite_files: true
           files: |
             dist/5echarging-linux-*
             dist/SHA256SUMS.txt
