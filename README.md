@@ -130,4 +130,4 @@ chmod +x ./build.sh
 
 ## 开源许可
 
-- MIT
+- MIT LICENSE
